@@ -95,7 +95,7 @@ for linha in relatorio:
     if linha["Loja com Falta"] != loja_atual:
         loja_atual = linha["Loja com Falta"]
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, f"⚠ Loja {loja_atual}", ln=True)
+        pdf.cell(0, 10, f"Loja {loja_atual}", ln=True)
         pdf.set_font("Arial", size=11)
 
     produto = linha["Produto"]
@@ -124,7 +124,7 @@ SMTP_PORTA = int(os.getenv("SMTP_PORTA", 587))
 
 msg = EmailMessage()
 msg.set_content("Segue em anexo o relatório de estoque crítico com sugestões de transferência.")
-msg["Subject"] = "🚨 Relatório de Estoque Crítico"
+msg["Subject"] = "Relatório de Estoque Crítico"
 msg["From"] = EMAIL_REMETENTE
 msg["To"] = EMAIL_DESTINATARIO
 
