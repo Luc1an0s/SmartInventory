@@ -3,6 +3,8 @@ import pandas as pd
 import smtplib
 from email.message import EmailMessage
 import os
+from fpdf import FPDF
+
 
 conn = sqlite3.connect("estoque.db")
 produtos_df = pd.read_sql("SELECT * FROM produtos", conn)
@@ -19,23 +21,18 @@ estoque_df = estoque_df.merge(media_diaria, on=['loja_id', 'produto_id'], how='l
 estoque_df['media_diaria'] = estoque_df['media_diaria'].fillna(0)
 
 faltando = estoque_df[estoque_df['estoque_atual'] < estoque_df['estoque_minimo']]
-corpo = "📦 Relatório de Estoque Crítico e Sugestões de Transferência\n\n"
+relatorio = []
 
 lojas_com_falta = faltando['loja_id'].unique()
 
 for loja_destino in lojas_com_falta:
     produtos_faltando = faltando[faltando['loja_id'] == loja_destino]
-    corpo += f"⚠ Loja {loja_destino} precisa de:\n"
-
-    sugestoes = ""
 
     for _, falta in produtos_faltando.iterrows():
         produto_id = falta['produto_id']
         nome_produto = falta['nome_produto']
         qtd_falta = round(falta['estoque_minimo'] - falta['estoque_atual'], 2)
         media_destino = falta['media_diaria']
-
-        corpo += f"  - {qtd_falta} unidades de {nome_produto}\n"
 
         todas_lojas = estoque_df[estoque_df['produto_id'] == produto_id]
         candidatos = todas_lojas[
@@ -44,17 +41,53 @@ for loja_destino in lojas_com_falta:
             (todas_lojas['media_diaria'] <= media_destino + 0.5)
         ]
 
-        for _, candidato in candidatos.iterrows():
-            loja_origem = candidato['loja_id']
-            qtd_sobrando = round(candidato['estoque_atual'] - candidato['estoque_minimo'], 2)
-            sugestoes += f"  - Loja {loja_origem}: {qtd_sobrando} unidades disponíveis ({nome_produto})\n"
+        if candidatos.empty:
+            relatorio.append({
+                "Loja com falta": loja_destino,
+                "Produto": nome_produto,
+                "Qtd faltando": qtd_falta,
+                "Loja sugerida": "Nenhuma",
+                "Qtd disponível": "",
+                "Média loja sugerida": ""
+            })
+        else:
+            for _, candidato in candidatos.iterrows():
+                loja_origem = candidato['loja_id']
+                qtd_sobrando = round(candidato['estoque_atual'] - candidato['estoque_minimo'], 2)
+                media_origem = round(candidato['media_diaria'], 2)
 
-    if sugestoes:
-        corpo += "\nEstoque disponível em outras lojas com baixa demanda:\n" + sugestoes
-    else:
-        corpo += "\nNenhuma loja com estoque disponível para transferência.\n"
+                relatorio.append({
+                    "Loja com falta": loja_destino,
+                    "Produto": nome_produto,
+                    "Qtd faltando": qtd_falta,
+                    "Loja sugerida": loja_origem,
+                    "Qtd disponível": qtd_sobrando,
+                    "Média loja sugerida": media_origem
+                })
 
-    corpo += "\n"
+
+df_relatorio = pd.DataFrame(relatorio)
+excel_path = "relatorio_transferencias.xlsx"
+df_relatorio.to_excel(excel_path, index=False)
+
+pdf = FPDF()
+pdf.add_page()
+pdf.set_font("Arial", size=12)
+pdf.cell(200, 10, txt="Relatório de Estoque Crítico", ln=True, align="C")
+pdf.ln(10)
+
+for linha in relatorio:
+    texto = (
+        f"Loja com falta: {linha['Loja com falta']} | Produto: {linha['Produto']} | "
+        f"Qtd faltando: {linha['Qtd faltando']} | Loja sugerida: {linha['Loja sugerida']} | "
+        f"Qtd disponível: {linha['Qtd disponível']} | Média: {linha['Média loja sugerida']}"
+    )
+    pdf.multi_cell(0, 10, txt=texto)
+    pdf.ln(2)
+
+pdf_path = "relatorio_transferencias.pdf"
+pdf.output(pdf_path)
+
 
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE")
 EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO")
@@ -63,16 +96,22 @@ SMTP_SERVIDOR = os.getenv("SMTP_SERVIDOR", "smtp.gmail.com")
 SMTP_PORTA = int(os.getenv("SMTP_PORTA", 587))
 
 msg = EmailMessage()
-msg.set_content(corpo)
-msg["Subject"] = "🚨 Alerta de Estoque Crítico com Sugestões"
+msg.set_content("Segue em anexo o relatório de estoque crítico com sugestões de transferência.")
+msg["Subject"] = "🚨 Relatório de Estoque Crítico"
 msg["From"] = EMAIL_REMETENTE
 msg["To"] = EMAIL_DESTINATARIO
+
+with open(excel_path, "rb") as f:
+    msg.add_attachment(f.read(), maintype="application", subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=excel_path)
+
+with open(pdf_path, "rb") as f:
+    msg.add_attachment(f.read(), maintype="application", subtype="pdf", filename=pdf_path)
 
 try:
     with smtplib.SMTP(SMTP_SERVIDOR, SMTP_PORTA) as server:
         server.starttls()
         server.login(EMAIL_REMETENTE, EMAIL_SENHA)
         server.send_message(msg)
-    print("E-mail enviado com sucesso!")
+    print("✅ E-mail enviado com anexos com sucesso!")
 except Exception as e:
-    print("Erro ao enviar e-mail:", e)
+    print("❌ Erro ao enviar e-mail:", e)
