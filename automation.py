@@ -4,7 +4,8 @@ import smtplib
 from email.message import EmailMessage
 import os
 from fpdf import FPDF
-
+from openpyxl import load_workbook
+from openpyxl.styles import Font
 
 conn = sqlite3.connect("estoque.db")
 produtos_df = pd.read_sql("SELECT * FROM produtos", conn)
@@ -43,12 +44,12 @@ for loja_destino in lojas_com_falta:
 
         if candidatos.empty:
             relatorio.append({
-                "Loja com falta": loja_destino,
+                "Loja com Falta": loja_destino,
                 "Produto": nome_produto,
-                "Qtd faltando": qtd_falta,
-                "Loja sugerida": "Nenhuma",
-                "Qtd disponível": "",
-                "Média loja sugerida": ""
+                "Quantidade Faltando": qtd_falta,
+                "Loja Sugerida": "Nenhuma",
+                "Quantidade Disponível": "",
+                "Média de Vendas da Loja Sugerida": ""
             })
         else:
             for _, candidato in candidatos.iterrows():
@@ -57,37 +58,63 @@ for loja_destino in lojas_com_falta:
                 media_origem = round(candidato['media_diaria'], 2)
 
                 relatorio.append({
-                    "Loja com falta": loja_destino,
+                    "Loja com Falta": loja_destino,
                     "Produto": nome_produto,
-                    "Qtd faltando": qtd_falta,
-                    "Loja sugerida": loja_origem,
-                    "Qtd disponível": qtd_sobrando,
-                    "Média loja sugerida": media_origem
+                    "Quantidade Faltando": qtd_falta,
+                    "Loja Sugerida": loja_origem,
+                    "Quantidade Disponível": qtd_sobrando,
+                    "Média de Vendas da Loja Sugerida": media_origem
                 })
 
-
 df_relatorio = pd.DataFrame(relatorio)
+
 excel_path = "relatorio_transferencias.xlsx"
 df_relatorio.to_excel(excel_path, index=False)
 
+wb = load_workbook(excel_path)
+ws = wb.active
+
+for cell in ws[1]:
+    cell.font = Font(bold=True)
+
+for column_cells in ws.columns:
+    length = max(len(str(cell.value)) for cell in column_cells)
+    ws.column_dimensions[column_cells[0].column_letter].width = length + 2
+
+wb.save(excel_path)
+
 pdf = FPDF()
 pdf.add_page()
-pdf.set_font("Arial", size=12)
-pdf.cell(200, 10, txt="Relatório de Estoque Crítico", ln=True, align="C")
-pdf.ln(10)
+pdf.set_font("Arial", "B", 14)
+pdf.cell(0, 10, "Relatório de Estoque Crítico", ln=True, align="C")
+pdf.ln(5)
+pdf.set_font("Arial", size=11)
 
+loja_atual = ""
 for linha in relatorio:
-    texto = (
-        f"Loja com falta: {linha['Loja com falta']} | Produto: {linha['Produto']} | "
-        f"Qtd faltando: {linha['Qtd faltando']} | Loja sugerida: {linha['Loja sugerida']} | "
-        f"Qtd disponível: {linha['Qtd disponível']} | Média: {linha['Média loja sugerida']}"
-    )
-    pdf.multi_cell(0, 10, txt=texto)
+    if linha["Loja com Falta"] != loja_atual:
+        loja_atual = linha["Loja com Falta"]
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, f"⚠ Loja {loja_atual}", ln=True)
+        pdf.set_font("Arial", size=11)
+
+    produto = linha["Produto"]
+    qtd_falta = linha["Quantidade Faltando"]
+    loja_sug = linha["Loja Sugerida"]
+    qtd_disp = linha["Quantidade Disponível"]
+    media = linha["Média de Vendas da Loja Sugerida"]
+
+    pdf.cell(0, 8, f"• {produto} - Faltando: {qtd_falta}", ln=True)
+
+    if loja_sug != "Nenhuma":
+        pdf.cell(0, 8, f"  → Sugerir da Loja {loja_sug}: {qtd_disp} unidades (média: {media})", ln=True)
+    else:
+        pdf.cell(0, 8, "  → Nenhuma loja sugerida", ln=True)
+
     pdf.ln(2)
 
 pdf_path = "relatorio_transferencias.pdf"
 pdf.output(pdf_path)
-
 
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE")
 EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO")
