@@ -86,7 +86,7 @@ wb.save(excel_path)
 pdf = FPDF()
 pdf.add_page()
 pdf.set_font("Arial", "B", 14)
-pdf.cell(0, 10, "Relatório de Estoque Crítico", ln=True, align="C")
+pdf.cell(0, 10, "Relatorio de Estoque Critico", ln=True, align="C")
 pdf.ln(5)
 pdf.set_font("Arial", size=11)
 
@@ -104,12 +104,12 @@ for linha in relatorio:
     qtd_disp = linha["Quantidade Disponível"]
     media = linha["Média de Vendas da Loja Sugerida"]
 
-    pdf.cell(0, 8, f"• {produto} - Faltando: {qtd_falta}", ln=True)
+    pdf.cell(0, 8, f"- {produto} - Faltando: {qtd_falta}", ln=True)
 
     if loja_sug != "Nenhuma":
-        pdf.cell(0, 8, f"  → Sugerir da Loja {loja_sug}: {qtd_disp} unidades (média: {media})", ln=True)
+        pdf.cell(0, 8, f"  -> Sugerir da Loja {loja_sug}: {qtd_disp} unidades (media: {media})", ln=True)
     else:
-        pdf.cell(0, 8, "  → Nenhuma loja sugerida", ln=True)
+        pdf.cell(0, 8, "  -> Nenhuma loja sugerida", ln=True)
 
     pdf.ln(2)
 
@@ -123,8 +123,8 @@ SMTP_SERVIDOR = os.getenv("SMTP_SERVIDOR", "smtp.gmail.com")
 SMTP_PORTA = int(os.getenv("SMTP_PORTA", 587))
 
 msg = EmailMessage()
-msg.set_content("Segue em anexo o relatório de estoque crítico com sugestões de transferência.")
-msg["Subject"] = "Relatório de Estoque Crítico"
+msg.set_content("Segue em anexo o relatorio de estoque critico com sugestoes de transferencia.")
+msg["Subject"] = "Relatorio de Estoque Critico"
 msg["From"] = EMAIL_REMETENTE
 msg["To"] = EMAIL_DESTINATARIO
 
