@@ -1,0 +1,32 @@
+name: Estoque Alerta Diário
+
+on:
+  schedule:
+    - cron: '0 9 * * *' 
+  workflow_dispatch:
+
+jobs:
+  run-alert:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clonar o repositório
+      uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Instalar dependências
+      run: |
+        pip install pandas openpyxl
+
+    - name: Executar script de automação
+      env:
+        EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+        EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
+        EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
+        SMTP_SERVIDOR: ${{ secrets.SMTP_SERVIDOR }}
+        SMTP_PORTA: ${{ secrets.SMTP_PORTA }}
+      run: python automation.py
