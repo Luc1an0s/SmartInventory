@@ -112,6 +112,6 @@ try:
         server.starttls()
         server.login(EMAIL_REMETENTE, EMAIL_SENHA)
         server.send_message(msg)
-    print("✅ E-mail enviado com anexos com sucesso!")
+    print("E-mail enviado com anexos com sucesso!")
 except Exception as e:
-    print("❌ Erro ao enviar e-mail:", e)
+    print("Erro ao enviar e-mail:", e)
