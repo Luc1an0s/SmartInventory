@@ -19,33 +19,42 @@ estoque_df = estoque_df.merge(media_diaria, on=['loja_id', 'produto_id'], how='l
 estoque_df['media_diaria'] = estoque_df['media_diaria'].fillna(0)
 
 faltando = estoque_df[estoque_df['estoque_atual'] < estoque_df['estoque_minimo']]
-
 corpo = "📦 Relatório de Estoque Crítico e Sugestões de Transferência\n\n"
 
-for _, falta in faltando.iterrows():
-    produto_id = falta['produto_id']
-    nome_produto = falta['nome_produto']
-    loja_destino = falta['loja_id']
-    qtd_falta = falta['estoque_atual']
-    media_destino = falta['media_diaria']
+lojas_com_falta = faltando['loja_id'].unique()
 
-    corpo += f"🔍 {nome_produto} ({loja_destino}) - {qtd_falta} unidades (média: {round(media_destino, 2)})\n"
+for loja_destino in lojas_com_falta:
+    produtos_faltando = faltando[faltando['loja_id'] == loja_destino]
+    corpo += f"⚠ Loja {loja_destino} precisa de:\n"
 
-    todas_lojas = estoque_df[estoque_df['produto_id'] == produto_id]
-    candidatos = todas_lojas[
-        (todas_lojas['loja_id'] != loja_destino) &
-        (todas_lojas['estoque_atual'] > todas_lojas['estoque_minimo']) &
-        (todas_lojas['media_diaria'] <= media_destino + 0.5)
-    ]
+    sugestoes = ""
 
-    if candidatos.empty:
-        corpo += " Nenhum candidato válido para transferência.\n"
-    else:
+    for _, falta in produtos_faltando.iterrows():
+        produto_id = falta['produto_id']
+        nome_produto = falta['nome_produto']
+        qtd_falta = round(falta['estoque_minimo'] - falta['estoque_atual'], 2)
+        media_destino = falta['media_diaria']
+
+        corpo += f"  - {qtd_falta} unidades de {nome_produto}\n"
+
+        todas_lojas = estoque_df[estoque_df['produto_id'] == produto_id]
+        candidatos = todas_lojas[
+            (todas_lojas['loja_id'] != loja_destino) &
+            (todas_lojas['estoque_atual'] > todas_lojas['estoque_minimo']) &
+            (todas_lojas['media_diaria'] <= media_destino + 0.5)
+        ]
+
         for _, candidato in candidatos.iterrows():
             loja_origem = candidato['loja_id']
-            qtd_sugerida = int(candidato['estoque_atual'] - candidato['estoque_minimo'])
-            media_origem = round(candidato['media_diaria'], 2)
-            corpo += f"  ➤ {loja_origem}: sugerir {qtd_sugerida} unidades (média: {media_origem})\n"
+            qtd_sobrando = round(candidato['estoque_atual'] - candidato['estoque_minimo'], 2)
+            sugestoes += f"  - Loja {loja_origem}: {qtd_sobrando} unidades disponíveis ({nome_produto})\n"
+
+    if sugestoes:
+        corpo += "\nEstoque disponível em outras lojas com baixa demanda:\n" + sugestoes
+    else:
+        corpo += "\nNenhuma loja com estoque disponível para transferência.\n"
+
+    corpo += "\n"
 
 EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE")
 EMAIL_DESTINATARIO = os.getenv("EMAIL_DESTINATARIO")
@@ -55,7 +64,7 @@ SMTP_PORTA = int(os.getenv("SMTP_PORTA", 587))
 
 msg = EmailMessage()
 msg.set_content(corpo)
-msg["Subject"] = "🚨 Alerta de Estoque Crítico"
+msg["Subject"] = "🚨 Alerta de Estoque Crítico com Sugestões"
 msg["From"] = EMAIL_REMETENTE
 msg["To"] = EMAIL_DESTINATARIO
 
