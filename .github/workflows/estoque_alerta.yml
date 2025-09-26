@@ -20,7 +20,7 @@ jobs:
 
     - name: Instalar dependências
       run: |
-        pip install pandas openpyxl
+        pip install pandas openpyxl fpdf
 
     - name: Executar script de automação
       env:
